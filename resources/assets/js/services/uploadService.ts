@@ -26,11 +26,13 @@ export interface UploadFile {
 export const uploadService = {
   state: reactive({
     files: [] as UploadFile[],
+    duplicateFilesUploaded: false,
   }),
 
   simultaneousUploads: 5,
 
   queue(file: UploadFile | UploadFile[]) {
+    this.state.duplicateFilesUploaded = false;
     this.state.files = this.state.files.concat(file)
     this.proceed()
   },
@@ -93,6 +95,18 @@ export const uploadService = {
     } catch (error: unknown) {
       logger.error(error)
       file.status = 'Errored'
+
+      if (error instanceof Error && 'status' in error) {
+        const status = (error as any).status
+
+        if (status === 409) {
+          file.message = 'Duplicate file uploaded.'
+          console.log('Duplicate File uploaded')
+          this.state.duplicateFilesUploaded = true;
+          this.proceed()
+          return
+        }
+      }
 
       if (error instanceof Error && 'responseData' in error && (error as any).responseData?.message) {
         file.message = `Upload failed: ${(error as any).responseData.message}`
